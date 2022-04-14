@@ -11,7 +11,7 @@
 SDL_Renderer* rend;
 Gore gore;
 bool push = false;
-
+bool atk = false;
 
 
 struct Entity {
@@ -26,6 +26,15 @@ struct Point {
 struct IntPoint {
 	int x;
 	int y;
+};
+struct Animate {
+	int x;
+	int y;
+	int w;
+	int h;
+	double time;
+	double ftime;
+	texp sprites;
 };
 Point camera = { 22, 3 };
 Point dir = { -1, 0 };
@@ -58,7 +67,6 @@ float dist(float ax, float ay, float bx, float by, float ang) {
 
 void raycastDDA(Entity* p, SDL_Renderer* rend) {
 	Point rayDir;
-	//Player position isn't in the -1 to 1 plane like rest of maths
 	for (int x = 0; x < 800; x++) {
 		camera.x = 2 * x / float(800) - 1;
 		rayDir.x = dir.x + plane.x * camera.x;
@@ -90,26 +98,28 @@ void raycastDDA(Entity* p, SDL_Renderer* rend) {
 		while (!hit) {
 			if (sidedist.x < sidedist.y) {
 				sidedist.x += deltadist.x;
-				distance = sidedist.x;
 				mp.x += step.x;
 				sidetype = 0;
 			}
 			else {
 				sidedist.y += deltadist.y;
-				distance = sidedist.y;
 				mp.y += step.y;
 				sidetype = 1;
 			}
 			if (map[mp.x][mp.y] != 0) {
-				//std::cout << mp.y << " : " << mp.x << std::endl;
 				hit = true;
 				break;
 			}
 		}
 		Uint8 col = 0;
 		if (sidetype == 0) { perpwalldist = sidedist.x - deltadist.x; col = 160; }
-		else { perpwalldist = sidedist.y - deltadist.y; col = 210; }
+		else if(sidetype == 1){ perpwalldist = sidedist.y - deltadist.y; col = 210; }
 		int lh;
+		if (sidetype == 2 && perpwalldist <= 2 && atk) {
+			//sidetype 2 will be for enemy tiles
+			std::cout << "Hit " << std::endl;
+			atk = false;
+		}
 		if (perpwalldist <= 1) {
 			lh = 400;
 			p->x += pushvec.x;
@@ -133,9 +143,15 @@ void raycastDDA(Entity* p, SDL_Renderer* rend) {
 //https://github.com/ssloy/tinyraycaster/wiki/Part-1:-crude-3D-renderings
 //https://www.youtube.com/watch?v=gYRrGTC7GtA
 //https://permadi.com/1996/05/ray-casting-tutorial-table-of-contents/
-//Try DDA instead of whatever the fuck this is
 //https://lodev.org/cgtutor/raycasting.html
 //https://www.youtube.com/watch?v=NbSee-XM7WA&list=WL&index=1
+//get texture and sprites working
+//Add combat and health
+//Add strength and agility stats
+// Strength increases attack power and agility increases attack speed
+//Can increase stats by absorbing dead enemies
+//Make enemies weird looking glitches
+//Make enemies static, maybe
 int main() {
 	if (!SDL_Init(SDL_INIT_EVERYTHING)) {
 		std::cout << "SDL failed to load" << std::endl;
@@ -149,12 +165,15 @@ int main() {
 	SDL_Window* wind = SDL_CreateWindow("Dungeon Crawler", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 800, SDL_WINDOW_SHOWN);
 	rend = SDL_CreateRenderer(wind, -1, 0);
 	bool exitf = false;
+	texp head = gore.loadTextureList({ "atk5.png", "atk4.png", "atk3.png", "atk2.png", "atk1.png" }, { 400, 400, 400, 400, 400 }, { 400, 400, 400, 400, 400 }
+	, SDL_PIXELFORMAT_RGBA8888, rend, "Sprites/");
 	Entity p = {20, 60};
 	p.dir = 0;
 	const Uint8* keys = SDL_GetKeyboardState(NULL);
 	SDL_Event e;
+	std::vector<Animate> animates;
 	double delta;
-	double btimer = 0;
+	double btimer = 0, atktimer = 0, atkcool = 1.0;
 	while (!exitf) {
 		while (SDL_PollEvent(&e)) {
 			switch (e.type) {
@@ -165,6 +184,7 @@ int main() {
 		}
 		delta = gore.getDelta();
 		btimer += delta;
+		atktimer += delta;
 		SDL_PumpEvents();
 		if (keys[SDL_SCANCODE_W]) {
 			p.x += dir.x * delta * 50;
@@ -189,7 +209,6 @@ int main() {
 			p.nx++;
 			btimer = 0;
 		}*/
-		//Get smooth movement working
 		if (btimer > 0.05) {
 			if (keys[SDL_SCANCODE_RIGHT]) {
 				float olddirx = dir.x;
@@ -210,6 +229,24 @@ int main() {
 				btimer = 0;
 			}
 		}
+		if (atktimer > atkcool) {
+			int mx, my;
+			if (keys[SDL_SCANCODE_Q] || SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+				atk = true;
+				//move this to raycasting part
+				Animate a;
+				a.x = 100;
+				a.y = 100;
+				a.w = 400;
+				a.h = 400;
+				a.time = 0;
+				a.ftime = 0.05;
+				a.sprites = head;
+				animates.push_back(a);
+				atktimer = 0;
+			}
+		}
+
 		SDL_SetRenderDrawColor(rend, 0, 0, 0, 0);
 		SDL_RenderClear(rend);
 		//SDL_SetRenderDrawColor(rend, 100, 100, 20, 0);
@@ -225,13 +262,23 @@ int main() {
 				}
 			}
 		}*/
-		//bruteForce(&p, rend);
-		//castRays(&p, rend);
-		//DDAcast(&p, rend);
 		raycastDDA(&p, rend);
-		SDL_SetRenderDrawColor(rend, 50, 255, 50, 0);
-		//SDL_Rect prect = { p.x/800, p.y/800, 1, 1 };
-		//SDL_RenderFillRect(rend, &prect);
+		int j = 0;
+		for(auto& i : animates){
+			i.time += delta;
+			if (i.time > i.ftime) {
+				i.sprites = i.sprites->next;
+				i.time = 0;
+			}
+			if (i.sprites == NULL) {
+				animates.erase(animates.begin() + j);
+			}
+			else {
+				SDL_Rect rect = { i.x, i.y, i.w, i.h };
+				SDL_RenderCopy(rend, i.sprites->current, NULL, &rect);
+			}
+			j++;
+		}
 		SDL_RenderPresent(rend);
 	}
 	TTF_Quit();
