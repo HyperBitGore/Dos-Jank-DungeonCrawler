@@ -18,18 +18,21 @@ SDL_Surface* wallsurf;
 SDL_Surface* enemsurf;
 SDL_Texture* enemtex;
 SDL_Surface* doorsurf;
+SDL_Surface* enem2surf1;
+SDL_Surface* enem3surf1;
 float zbuf[800];
 float doordist = 100;
 int level = 1;
 bool textmode = true;
 bool dead = false;
-std::string leveltext = "Hello\n Arrow keys to move and turn\n Q or Left mouse to\n attack\n Press E to eat dead \nbodies and gain skill points\nKill door to progress\nClick to close";
+std::string leveltext = "Hello\n Arrow keys to move and turn\n Q or Left mouse to\n attack\n Press E to eat dead \nbodies and gain skill points\nKill door to progress\nPress T to rest and \nregain health\nR to block\nClick to close";
 struct Entity {
 	float x;
 	float y;
 	int health;
 	int strength;
 	int agility;
+	int maxhealth;
 };
 struct Point {
 	float x;
@@ -54,6 +57,7 @@ struct Sprite {
 	bool forward;
 	bool dead;
 	int type;
+	int atkdmg;
 };
 struct Animate {
 	int x;
@@ -64,7 +68,7 @@ struct Animate {
 	double ftime;
 	Sprite* targ;
 	texp sprites;
-
+	int type;
 };
 std::vector<Sprite> sprites;
 Point camera = { 22, 3 };
@@ -110,10 +114,61 @@ int map2[16][16] = {
 	1,0,0,0,2,2,0,0,2,1,1,1,1,1,1,1,
 	1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,
 	1,0,0,0,0,0,0,0,0,2,2,0,0,0,0,1,
-	1,0,0,0,0,0,0,020,0,0,0,2,1,1,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,2,1,1,1,
 	1,0,0,2,2,0,1,0,0,0,0,2,0,0,4,1,
 	1,0,0,0,0,0,1,0,0,0,0,0,0,1,1,1,
 	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, };
+int map3[16][16] = {
+	3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,
+	3,0,0,0,0,0,3,0,0,0,0,0,0,0,0,3,
+	3,0,3,0,5,0,3,0,0,2,0,2,0,0,0,3,
+	3,0,3,0,0,0,3,0,3,3,3,3,3,3,3,3,
+	3,0,3,0,3,0,0,0,0,0,0,0,0,0,0,3,
+	3,0,3,0,0,0,0,5,0,0,0,0,0,0,0,3,
+	3,0,3,3,3,3,3,3,3,0,0,3,3,3,3,3,
+	3,0,3,0,0,0,0,0,3,0,0,0,0,0,0,3,
+	3,3,3,3,3,5,3,3,3,0,0,2,0,0,0,3,
+	3,0,0,0,2,2,0,0,0,0,3,3,3,3,3,3,
+	3,3,3,3,3,3,3,0,0,0,0,0,0,0,0,3,
+	3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,
+	3,0,0,0,0,0,0,0,0,0,5,0,3,3,3,3,
+	3,0,0,2,2,0,3,0,5,0,0,0,0,0,4,3,
+	3,0,0,0,0,0,3,0,0,0,0,0,3,3,3,3,
+	3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3, };
+int map4[16][16] = {
+	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+	1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,1,0,0,2,0,2,0,0,0,1,
+	1,0,1,0,1,0,1,0,1,1,1,1,1,1,1,1,
+	1,0,1,0,1,0,1,0,0,0,0,0,0,0,0,1,
+	1,1,1,5,0,5,0,0,2,0,2,0,0,0,0,1,
+	1,0,0,0,1,1,0,1,1,1,1,1,1,1,1,1,
+	1,0,5,0,1,0,0,0,1,0,0,0,0,0,1,1,
+	1,1,1,1,1,5,1,1,1,0,0,5,5,5,4,1,
+	1,0,0,0,2,2,0,0,0,0,1,1,1,1,1,1,
+	1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,0,0,0,2,0,2,1,
+	1,0,0,0,0,0,0,0,0,0,5,0,1,1,1,1,
+	1,0,0,5,5,0,1,0,5,0,5,0,0,0,0,1,
+	1,0,0,0,0,0,1,0,0,0,0,0,1,1,1,1,
+	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, };
+int map5[16][16] = {
+	1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
+	1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,
+	1,0,0,0,0,0,0,0,0,5,0,5,0,0,0,1,
+	1,0,1,1,1,1,1,0,1,1,1,1,1,1,1,1,
+	1,0,1,0,1,0,1,5,0,0,0,0,0,0,0,1,
+	1,1,1,0,0,6,0,0,6,0,2,2,0,0,0,1,
+	1,0,0,0,1,1,0,1,1,1,1,1,1,1,1,1,
+	1,0,5,0,0,0,0,0,1,0,0,0,0,0,1,1,
+	1,0,1,1,1,6,1,1,1,0,0,5,5,5,4,1,
+	1,0,0,0,2,2,0,0,2,0,1,1,1,1,1,1,
+	1,0,1,1,1,1,1,0,0,0,0,0,0,0,0,1,
+	1,6,0,0,0,0,0,0,5,5,0,0,2,0,2,1,
+	1,0,0,0,0,0,0,0,6,0,5,0,1,1,1,1,
+	1,6,6,6,6,0,1,0,0,0,5,0,0,0,0,1,
+	1,0,6,0,0,0,1,0,0,0,0,0,1,1,1,1,
+	1,1,4,1,1,1,1,1,1,1,1,1,1,1,1,1, };
 int map[16][16];
 float dist(float ax, float ay, float bx, float by, float ang) {
 	return cos((ang)*(bx-ax) - sin(ang) * (by-ay));
@@ -312,6 +367,7 @@ void parseLevel() {
 				s.h = 400;
 				s.health = 100;
 				s.frames = 3;
+				s.atkdmg = 5;
 				s.f = 1;
 				s.dead = false;
 				s.ftime = 0.2;
@@ -321,9 +377,54 @@ void parseLevel() {
 				s.distance = 0;
 				sprites.push_back(s);
 			}
+			else if (map[i][j] == 5) {
+				map[i][j] = 0;
+				Sprite s;
+				s.x = (i * 16);
+				s.y = j * 16;
+				s.surf = enem2surf1;
+				s.w = 300;
+				s.h = 400;
+				s.atkdmg = 15;
+				s.health = 1000;
+				s.frames = 4;
+				s.f = 1;
+				s.dead = false;
+				s.ftime = 0.15;
+				s.forward = true;
+				s.type = 0;
+				s.time = 0;
+				s.type = 2;
+				s.distance = 0;
+				sprites.push_back(s);
+			}
+			else if (map[i][j] == 6) {
+				map[i][j] = 0;
+				Sprite s;
+				s.x = (i * 16);
+				s.y = j * 16;
+				s.surf = enem3surf1;
+				s.w = 300;
+				s.h = 400;
+				s.atkdmg = 40;
+				s.health = 2500;
+				s.frames = 3;
+				s.f = 1;
+				s.dead = false;
+				s.ftime = 0.13;
+				s.forward = true;
+				s.type = 0;
+				s.time = 0;
+				s.type = 3;
+				s.distance = 0;
+				sprites.push_back(s);
+			}
 			else if (map[i][j] == 4) {
 				Sprite s;
-				s.health = 100 * level;
+				s.health = 200 * level;
+				if (level == 5) {
+					s.health += 1500;
+				}
 				s.dead = false;
 				s.ftime = 0.2;
 				switch (level) {
@@ -368,37 +469,37 @@ void endLevelText(Entity* p) {
 		parseLevel();
 		break;
 	case 2:
-		leveltext = "I lost the textures in the next room\nDon't judge it too harshly\n I worked so hard on it";
+		leveltext = "I lost the textures\n in the next room\nDon't judge it too harshly\n I worked so hard on it";
 		textmode = true;
 		level++;
 		p->x = 40;
 		p->y = 50;
 		p->health += 100;
-		//memcpy(map, map3, sizeof(map));
+		memcpy(map, map3, sizeof(map));
 		parseLevel();
 		break;
 	case 3:
-		leveltext = "I'm surprised you enjoy it\n so much\nJust a few more levels\n and you're free";
+		leveltext = "I'm surprised you\n enjoy it\n so much\nJust a few\n more levels\n and you're free";
 		textmode = true;
 		level++;
 		p->x = 40;
 		p->y = 50;
 		p->health += 100;
-		//memcpy(map, map4, sizeof(map));
+		memcpy(map, map4, sizeof(map));
 		parseLevel();
 		break;
 	case 4:
-		leveltext = "Can you slow down please?\nI don't know what\n I will do once you're gone...\n";
+		leveltext = "Can you slow\n down please?\nI don't know what\n I will do\n once you're\n gone...\n";
 		textmode = true;
 		level++;
 		p->x = 40;
 		p->y = 50;
 		p->health += 100;
-		//memcpy(map, map5, sizeof(map));
+		memcpy(map, map5, sizeof(map));
 		parseLevel();
 		break;
 	case 5:
-		leveltext = "That's it\nI don't have anything else for you\nBut please don't go...\nIt's so lonely in here\nPlease don't leave...";
+		leveltext = "That's it you won\nI don't have anything else for you\nBut please don't go...\nIt's so lonely in here\nPlease don't leave...";
 		textmode = true;
 		break;
 	}
@@ -408,7 +509,11 @@ void death(Entity* p) {
 	p->x = 40;
 	p->y = 50;
 	p->health = 100;
+	p->agility = 1;
+	p->strength = 1;
+	p->maxhealth = 100;
 	level = 1;
+	sprites.clear();
 	memcpy(map, map1, sizeof(map));
 	doordist = 100;
 	parseLevel();
@@ -419,9 +524,6 @@ void death(Entity* p) {
 //https://permadi.com/1996/05/ray-casting-tutorial-table-of-contents/
 //https://lodev.org/cgtutor/raycasting.html
 //https://www.youtube.com/watch?v=NbSee-XM7WA&list=WL&index=1
-//Handmade levels
-//Add waiting
-//Add sound effects
 //Make enemies static, maybe(path via tiles)
 int main() {
 	srand(time(NULL));
@@ -441,7 +543,10 @@ int main() {
 	texp texthead = NULL;
 	constructAlphabet(rend, font, {150, 200, 250}, texthead);
 	bool exitf = false;
+	
 	texp atkhead = gore.loadTextureList({ "atk5.png", "atk4.png", "atk3.png", "atk2.png", "atk1.png" }, { 400, 400, 400, 400, 400 }, { 400, 400, 400, 400, 400 }
+	, SDL_PIXELFORMAT_RGBA8888, rend, "Sprites/");
+	texp blockhead = gore.loadTextureList({ "block4.png", "block3.png", "block2.png", "block1.png" }, { 200, 200, 200, 200 }, { 200, 200, 200, 200 }
 	, SDL_PIXELFORMAT_RGBA8888, rend, "Sprites/");
 	surf = SDL_CreateRGBSurfaceWithFormat(0, 800, 800, 32, SDL_PIXELFORMAT_RGBA8888);
 	wallsurf = gore.loadPNG("Sprites/wall1.png", SDL_PIXELFORMAT_RGBA8888, 50, 50);
@@ -450,18 +555,37 @@ int main() {
 	SDL_Surface* enemsurf3 = gore.loadPNG("Sprites/enemy1_3.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);
 	SDL_Surface* deadsurf = gore.loadPNG("Sprites/deadenemy.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);
 	doorsurf = gore.loadPNG("Sprites/door1.png", SDL_PIXELFORMAT_RGBA8888, 50, 50);
+	enem2surf1 = gore.loadPNG("Sprites/enemy2.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);
+	SDL_Surface* enem2surf2 = gore.loadPNG("Sprites/enemy2_2.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);;
+	SDL_Surface* enem2surf3 = gore.loadPNG("Sprites/enemy2_3.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);;
+	SDL_Surface* enem2surf4 = gore.loadPNG("Sprites/enemy2_4.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);;
+	enem3surf1 = gore.loadPNG("Sprites/enemy3.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);
+	SDL_Surface* enem3surf2 = gore.loadPNG("Sprites/enemy3_2.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);
+	SDL_Surface* enem3surf3 = gore.loadPNG("Sprites/enemy3_3.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);
+
 	enemtex = SDL_CreateTextureFromSurface(rend, enemsurf);
+
+	Mix_Chunk* hitsound = Mix_LoadWAV("Sprites/hit.wav");
+	Mix_Chunk* hurtsound = Mix_LoadWAV("Sprites/hurt.wav");
+	Mix_Chunk* skillpointsound = Mix_LoadWAV("Sprites/skillpoint.wav");
+	Mix_Chunk* deathsound = Mix_LoadWAV("Sprites/death.wav");
+	Mix_Chunk* winsound = Mix_LoadWAV("Sprites/win.wav");
+	Mix_Chunk* blocksound = Mix_LoadWAV("Sprites/block.wav");
+
 	Entity p = {40, 50, 100};
 	p.strength = 1;
 	p.agility = 1;
+	p.maxhealth = 100;
 	const Uint8* keys = SDL_GetKeyboardState(NULL);
 	SDL_Event e;
 	std::vector<Animate> animates;
 	//generateLevel(&p);
 	double delta;
-	double btimer = 0, atktimer = 0, atkcool = 1.0;
-	bool upgrade = false;
+	double btimer = 0, atktimer = 0, atkcool = 1.0, blocktimer = 0;
+	bool upgrade = false, enemonscreen = false, drawwaittext = false, blockable = true;
+	bool block = false;
 	parseLevel();
+	std::cout << gore.ConvertColorToUint32({ 0, 0, 0, 255 }, surf->format) << std::endl;
 	std::sort(sprites.begin(), sprites.end(), spriteDistanceSort);
 	Sprite* up = nullptr;
 	while (!exitf) {
@@ -475,6 +599,7 @@ int main() {
 		delta = gore.getDelta();
 		btimer += delta;
 		atktimer += delta;
+		blocktimer += delta;
 		SDL_PumpEvents();
 		if (keys[SDL_SCANCODE_W] && !upgrade) {
 			p.x += dir.x * delta * 50;
@@ -511,6 +636,7 @@ int main() {
 		}
 		Sprite* range = nullptr;
 		bool drawehealth = false;
+		atk = false;
 		if (atktimer > atkcool) {
 			int mx, my;
 			if (keys[SDL_SCANCODE_Q] && !upgrade || SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT) && !upgrade) {
@@ -523,6 +649,7 @@ int main() {
 					a.w = 400;
 					a.h = 400;
 					a.time = 0;
+					a.type = 0;
 					a.ftime = 0.05;
 					a.sprites = atkhead;
 					for (auto& i : sprites) {
@@ -532,30 +659,34 @@ int main() {
 					}
 					animates.push_back(a);
 					atktimer = 0;
+					atk = true;
 					skip = true;
 				}
 				if (!skip) {
 					for (auto& i : sprites) {
 						if (i.distance < 1.2) {
-							sp = &i;
-							atk = true;
-							//move this to raycasting part
-							Animate a;
-							a.x = 100;
-							a.y = 100;
-							a.w = 400;
-							a.h = 400;
-							a.time = 0;
-							a.ftime = 0.05;
-							a.sprites = atkhead;
-							a.targ = sp;
-							animates.push_back(a);
-							atktimer = 0;
+							if (!i.dead) {
+								sp = &i;
+								atk = true;
+								//move this to raycasting part
+								Animate a;
+								a.x = 100;
+								a.y = 100;
+								a.w = 400;
+								a.h = 400;
+								a.type = 0;
+								a.time = 0;
+								a.ftime = 0.05;
+								a.sprites = atkhead;
+								a.targ = sp;
+								animates.push_back(a);
+								atktimer = 0;
+							}
 							break;
 						}
 					}
 				}
-				
+
 			}
 			else if (keys[SDL_SCANCODE_E]) {
 				for (auto& i : sprites) {
@@ -568,7 +699,19 @@ int main() {
 				}
 			}
 		}
-		
+		//Put on different timer
+		if (blocktimer > 1.2 && !atk) {
+			if (keys[SDL_SCANCODE_R] && blockable) {
+				for (auto& i : sprites) {
+					if (i.distance < 1.2 && !i.dead) {
+						block = true;
+						blockable = false;
+						break;
+					}
+				}
+				blocktimer = 0;
+			}
+		}
 
 		SDL_SetRenderDrawColor(rend, 0, 0, 0, 0);
 		SDL_RenderClear(rend);
@@ -581,7 +724,7 @@ int main() {
 					i.distance = (sqrt(((p.x - i.x) * (p.x - i.x) + (p.y - i.y) * (p.y - i.y)))) / 16;
 					//std::cout << i.distance << std::endl;
 					if (!i.dead) {
-						if (i.type == 0) {
+						if (i.type == 0 || i.type == 2 || i.type == 3) {
 							if (i.distance <= 1.2) {
 								range = &i;
 								drawehealth = true;
@@ -589,35 +732,93 @@ int main() {
 								if (i.time > i.ftime) {
 									if (i.forward) {
 										i.f++;
+										if (block) {
+											i.f = 1;
+											Animate a;
+											a.x = 200;
+											a.y = 200;
+											a.w = 200;
+											a.h = 200;
+											a.time = 0;
+											a.type = 1;
+											a.ftime = 0.05;
+											block = false;
+											a.sprites = blockhead;
+											animates.push_back(a);
+										}
 										if (i.f > i.frames) {
 											i.f = i.frames;
 											i.forward = false;
-										}
+										}							
 									}
 									else {
 										i.f--;
 										if (i.f < 1) {
 											i.f = 1;
-											p.health -= 5;
+											p.health -= i.atkdmg;
+											Mix_PlayChannel(-1, hurtsound, 0);
 											i.forward = true;
 										}
 									}
-									switch (i.f) {
-									case 1:
-										i.surf = enemsurf;
+									switch (i.type) {
+									case 0:
+										switch (i.f) {
+										case 1:
+											i.surf = enemsurf;
+											break;
+										case 2:
+											i.surf = enemsurf2;
+											break;
+										case 3:
+											i.surf = enemsurf3;
+											break;
+										}
 										break;
 									case 2:
-										i.surf = enemsurf2;
+										switch (i.f) {
+										case 1:
+											i.surf = enem2surf1;
+											break;
+										case 2:
+											i.surf = enem2surf2;
+											break;
+										case 3:
+											i.surf = enem2surf3;
+											break;
+										case 4:
+											i.surf = enem2surf4;
+											break;
+										}
 										break;
 									case 3:
-										i.surf = enemsurf3;
+										switch (i.f) {
+										case 1:
+											i.surf = enem3surf1;
+											break;
+										case 2:
+											i.surf = enem3surf2;
+											break;
+										case 3:
+											i.surf = enem3surf3;
+											break;
+										}
 										break;
 									}
 									i.time = 0;
 								}
 							}
 							else {
-								i.surf = enemsurf;
+								switch (i.type) {
+								case 0:
+									i.surf = enemsurf;
+									break;
+								case 2:
+									i.surf = enem2surf1;
+									break;
+								case 3:
+									i.surf = enem3surf1;
+									break;
+								}
 							}
 							if (i.health <= 0) {
 								i.health = 1;
@@ -631,12 +832,14 @@ int main() {
 								range = &i;
 								if (i.time > i.ftime) {
 									p.health -= 10 * level;
+									Mix_PlayChannel(-1, hurtsound, 0);
 									i.time = 0;
 								}
 							}
 							if (i.health <= 0) {
 								i.dead = true;
 								map[i.x][i.y] = 0;
+								Mix_PlayChannel(-1, winsound, 0);
 								endLevelText(&p);
 							}
 						}
@@ -651,10 +854,11 @@ int main() {
 				}
 			}
 			std::sort(sprites.begin(), sprites.end(), spriteDistanceSort);
-			std::cout << "X: " << p.x << " Y: " << p.y << std::endl;
+			//std::cout << "X: " << p.x << " Y: " << p.y << std::endl;
 			//std::cout << doordist << std::endl;
+			enemonscreen = false;
 			for (int i = 0; i < sprites.size(); i++) {
-				if (sprites[i].type == 0) {
+				if (sprites[i].type != 1) {
 					float spx = sprites[i].x - p.x;
 					float spy = sprites[i].y - p.y;
 					float invDet = 1.0 / (plane.x * dir.y - dir.x * plane.y);
@@ -688,10 +892,16 @@ int main() {
 								int texY = ((d * 400) / spriteheight) / 256;
 								if (texY >= 0 && texY <= 400 && texX >= 0 && texX <= 300) {
 									Uint32 color = gore.GetPixelSurface(sprites[i].surf, &texY, &texX);
-									gore.SetPixelSurface(surf, &y, &stripe, &color);
+									if (color > 255) {
+										gore.SetPixelSurface(surf, &y, &stripe, &color);
+									}
 								}
 							}
 					}
+					if (sprites[i].distance < 2.5) {
+						enemonscreen = true;
+					}
+					
 				}
 			}
 			SDL_Texture* tex = SDL_CreateTextureFromSurface(rend, surf);
@@ -699,6 +909,29 @@ int main() {
 			SDL_RenderCopy(rend, tex, NULL, &frect);
 			SDL_DestroyTexture(tex);
 			gore.clearSurface(surf);
+			if (!enemonscreen) {
+				if (btimer > 0.1) {
+					if (keys[SDL_SCANCODE_T]) {
+						int dif = p.maxhealth - p.health;
+						if (dif > 0) {
+							p.health += dif;
+						}
+						drawwaittext = true;
+						btimer = 0;
+						Mix_PlayChannel(-1, skillpointsound, 0);
+					}
+				}
+			}
+			if (drawwaittext) {
+				SDL_SetRenderDrawColor(rend, 150, 255, 50, 0);
+				SDL_Rect rect = { 200, 200, 400, 400 };
+				SDL_RenderFillRect(rend, &rect);
+				drawText(rend, texthead, "You waited and regained your \nhealth\n Left click to return", 220, 220, 26, 28, 400);
+				int mx, my;
+				if (SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+					drawwaittext = false;
+				}
+			}
 			if (upgrade) {
 				SDL_SetRenderDrawColor(rend, 150, 255, 50, 0);
 				SDL_Rect rect = { 200, 200, 270, 220 };
@@ -717,10 +950,12 @@ int main() {
 				if (SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
 					if (mx < 210 + 250 && mx + 1 > 210 && my < 210 + 100 && my + 1 > 210) {
 						p.strength++;
+						p.maxhealth += 10;
 						upgrade = false;
 						p.health += 25;
 						up->health = 0;
 						atktimer = 0;
+						Mix_PlayChannel(-1, skillpointsound, 0);
 					}
 					else if (mx < 210 + 250 && mx + 1 > 210 && my < 310 + 100 && my + 1 > 310) {
 						p.agility++;
@@ -729,6 +964,7 @@ int main() {
 						p.health += 25;
 						up->health = 0;
 						atktimer = 0;
+						Mix_PlayChannel(-1, skillpointsound, 0);
 					}
 				}
 
@@ -751,9 +987,18 @@ int main() {
 					i.time = 0;
 				}
 				if (i.sprites == NULL) {
+					switch (i.type) {
+					case 0:
+						Mix_PlayChannel(-1, hitsound, 0);
+						i.targ->health -= 4 * p.strength;
+						break;
+					case 1:
+						Mix_PlayChannel(-1, blocksound, 0);
+						blockable = true;
+						break;
+					}
 					animates.erase(animates.begin() + j);
-					i.targ->health -= 5 * p.strength;
-					std::cout << i.targ->health << std::endl;
+					//std::cout << i.targ->health << std::endl;
 				}
 				else {
 					SDL_Rect rect = { i.x, i.y, i.w, i.h };
@@ -776,6 +1021,7 @@ int main() {
 			}
 			if (p.health <= 0) {
 				dead = true;
+				Mix_PlayChannel(-1, deathsound, 0);
 			}
 		}
 		else {
