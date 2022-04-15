@@ -13,7 +13,6 @@ SDL_Renderer* rend;
 Gore gore;
 bool push = false;
 bool atk = false;
-bool enemonscreen = false;
 SDL_Surface* surf;
 SDL_Surface* wallsurf;
 SDL_Surface* enemsurf;
@@ -22,7 +21,9 @@ float zbuf[800];
 struct Entity {
 	float x;
 	float y;
-	int dir;
+	int health;
+	int strength;
+	int agility;
 };
 struct Point {
 	float x;
@@ -43,6 +44,9 @@ struct Sprite {
 	double ftime;
 	double time;
 	int frames;
+	int f;
+	bool forward;
+	bool dead;
 };
 struct Animate {
 	int x;
@@ -191,6 +195,36 @@ void raycastDDA(Entity* p, SDL_Renderer* rend) {
 		zbuf[x] = perpwalldist;
 	}
 }
+void constructAlphabet(SDL_Renderer* rend, TTF_Font* font, SDL_Color color, texp& head) {
+	for (int i = 33; i < 123; i++) {
+		char c = i;
+		std::string co;
+		co.push_back(c);
+		SDL_Surface* surf = TTF_RenderText_Solid(font, co.c_str(), color);
+		SDL_Texture* tex = SDL_CreateTextureFromSurface(rend, surf);
+		SDL_FreeSurface(surf);
+		gore.insertTex(head, tex, co);
+		//std::cout << co << std::endl;
+	}
+}
+void drawText(SDL_Renderer* rend, texp& head, std::string text, int x, int y, int w, int h, int mw) {
+	int sx = x;
+	int sy = y;
+	int base = 0;
+	for (auto& i : text) {
+		std::string t;
+		t.push_back(i);
+		SDL_Rect pos = { sx, sy, w, h };
+		SDL_RenderCopy(rend, gore.findTex(head, t.c_str()), NULL, &pos);
+		sx += w + 1;
+		base += w + 1;
+		if (base > mw) {
+			sx = x;
+			sy += h + 1;
+			base = 0;
+		}
+	}
+}
 
 
 //https://github.com/ssloy/tinyraycaster/wiki/Part-1:-crude-3D-renderings
@@ -198,11 +232,10 @@ void raycastDDA(Entity* p, SDL_Renderer* rend) {
 //https://permadi.com/1996/05/ray-casting-tutorial-table-of-contents/
 //https://lodev.org/cgtutor/raycasting.html
 //https://www.youtube.com/watch?v=NbSee-XM7WA&list=WL&index=1
-//Add combat and health
-//Add strength and agility stats
-//Strength increases attack power and agility increases attack speed
-//Can increase stats by absorbing dead enemies
-//Make enemies weird looking glitches
+//Add level generation
+//Add story for between levels 1-10
+//Add enemy death animation
+//Add sound effects
 //Make enemies static, maybe
 int main() {
 	if (!SDL_Init(SDL_INIT_EVERYTHING)) {
@@ -216,6 +249,9 @@ int main() {
 	}
 	SDL_Window* wind = SDL_CreateWindow("Dungeon Crawler", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 800, SDL_WINDOW_SHOWN);
 	rend = SDL_CreateRenderer(wind, -1, 0);
+	TTF_Font* font = TTF_OpenFont("DelaGothicOne-Regular.ttf", 12);
+	texp texthead = NULL;
+	constructAlphabet(rend, font, {150, 200, 250}, texthead);
 	bool exitf = false;
 	texp atkhead = gore.loadTextureList({ "atk5.png", "atk4.png", "atk3.png", "atk2.png", "atk1.png" }, { 400, 400, 400, 400, 400 }, { 400, 400, 400, 400, 400 }
 	, SDL_PIXELFORMAT_RGBA8888, rend, "Sprites/");
@@ -224,14 +260,17 @@ int main() {
 	enemsurf = gore.loadPNG("Sprites/enemy1.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);
 	SDL_Surface* enemsurf2 = gore.loadPNG("Sprites/enemy1_2.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);
 	SDL_Surface* enemsurf3 = gore.loadPNG("Sprites/enemy1_3.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);
+	SDL_Surface* deadsurf = gore.loadPNG("Sprites/deadenemy.png", SDL_PIXELFORMAT_RGBA8888, 300, 400);
 	enemtex = SDL_CreateTextureFromSurface(rend, enemsurf);
-	Entity p = {40, 50};
-	p.dir = 0;
+	Entity p = {40, 50, 100};
+	p.strength = 1;
+	p.agility = 1;
 	const Uint8* keys = SDL_GetKeyboardState(NULL);
 	SDL_Event e;
 	std::vector<Animate> animates;
 	double delta;
 	double btimer = 0, atktimer = 0, atkcool = 1.0;
+	bool upgrade = false;
 	for (int i = 0; i < 16; i++) {
 		for (int j = 0; j < 16; j++) {
 			if (map[i][j] == 2) {
@@ -244,6 +283,11 @@ int main() {
 				s.h = 400;
 				s.health = 100;
 				s.frames = 3;
+				s.f = 1;
+				s.dead = false;
+				s.ftime = 0.2;
+				s.forward = true;
+				s.time = 0;
 				s.distance = 0;
 				sprites.push_back(s);
 			}
@@ -255,7 +299,12 @@ int main() {
 	s.surf = enemsurf;
 	s.w = 300;
 	s.h = 400;
+	s.dead = false;
 	s.frames = 3;
+	s.f = 1;
+	s.ftime = 0.2;
+	s.forward = true;
+	s.time = 0;
 	s.health = 100;
 	s.distance = 4;
 	sprites.push_back(s);
@@ -272,13 +321,13 @@ int main() {
 		btimer += delta;
 		atktimer += delta;
 		SDL_PumpEvents();
-		if (keys[SDL_SCANCODE_W]) {
+		if (keys[SDL_SCANCODE_W] && !upgrade) {
 			p.x += dir.x * delta * 50;
 			p.y += dir.y * delta * 50;
 			pushvec.x = -(dir.x * delta * 50);
 			pushvec.y = -(dir.y * delta * 50);
 		}
-		else if (keys[SDL_SCANCODE_S]) {
+		else if (keys[SDL_SCANCODE_S] && !upgrade) {
 			p.x -= dir.x * delta * 50;
 			p.y -= dir.y * delta * 50;
 			pushvec.x = dir.x * delta * 50;
@@ -296,50 +345,57 @@ int main() {
 			btimer = 0;
 		}*/
 		if (btimer > 0.1) {
-			if (keys[SDL_SCANCODE_RIGHT]) {
+			if (keys[SDL_SCANCODE_RIGHT] && !upgrade) {
 				float olddirx = dir.x;
-				dir.x = dir.x * cos(-delta * 50) - dir.y * sin(-delta * 50);
-				dir.y = olddirx * sin(-delta * 50) + dir.y * cos(-delta * 50);
+				dir.x = dir.x * cos(-delta * 15) - dir.y * sin(-delta * 15);
+				dir.y = olddirx * sin(-delta * 15) + dir.y * cos(-delta * 15);
 				double oldPlaneX = plane.x;
-				plane.x = plane.x * cos(-delta * 50) - plane.y * sin(-delta * 50);
-				plane.y = oldPlaneX * sin(-delta * 50) + plane.y * cos(-delta * 50);
+				plane.x = plane.x * cos(-delta * 15) - plane.y * sin(-delta * 15);
+				plane.y = oldPlaneX * sin(-delta * 15) + plane.y * cos(-delta * 15);
 				btimer = 0;
 			}
-			else if (keys[SDL_SCANCODE_LEFT]) {
+			else if (keys[SDL_SCANCODE_LEFT] && !upgrade) {
 				double olddirx = dir.x;
-				dir.x = dir.x * cos(delta * 50) - dir.y * sin(delta * 50);
-				dir.y = olddirx * sin(delta * 50) + dir.y * cos(delta * 50);
+				dir.x = dir.x * cos(delta * 15) - dir.y * sin(delta * 15);
+				dir.y = olddirx * sin(delta * 15) + dir.y * cos(delta * 15);
 				double oldPlaneX = plane.x;
-				plane.x = plane.x * cos(delta * 50) - plane.y * sin(delta * 50);
-				plane.y = oldPlaneX * sin(delta * 50) + plane.y * cos(delta * 50);
+				plane.x = plane.x * cos(delta * 15) - plane.y * sin(delta * 15);
+				plane.y = oldPlaneX * sin(delta * 15) + plane.y * cos(delta * 15);
 				btimer = 0;
 			}
 		}
+		Sprite* range = nullptr;
+		bool drawehealth = false;
 		if (atktimer > atkcool) {
 			int mx, my;
-			if (keys[SDL_SCANCODE_Q] || SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT)) {
+			if (keys[SDL_SCANCODE_Q] && !upgrade || SDL_GetMouseState(&mx, &my) & SDL_BUTTON(SDL_BUTTON_LEFT) && !upgrade) {
 				Sprite* sp = nullptr;
-				bool skip = true;
 				for (auto& i : sprites) {
 					if (i.distance < 1.2) {
-						skip = false;
 						sp = &i;
+						atk = true;
+						//move this to raycasting part
+						Animate a;
+						a.x = 100;
+						a.y = 100;
+						a.w = 400;
+						a.h = 400;
+						a.time = 0;
+						a.ftime = 0.05;
+						a.sprites = atkhead;
+						a.targ = sp;
+						animates.push_back(a);
+						atktimer = 0;
 					}
 				}
-				if (!skip) {
-					atk = true;
-					//move this to raycasting part
-					Animate a;
-					a.x = 100;
-					a.y = 100;
-					a.w = 400;
-					a.h = 400;
-					a.time = 0;
-					a.ftime = 0.05;
-					a.sprites = atkhead;
-					a.targ = sp;
-					animates.push_back(a);
-					atktimer = 0;
+				
+			}
+			else if (keys[SDL_SCANCODE_E]) {
+				for (auto& i : sprites) {
+					if (i.distance < 1.2 && i.dead) {
+						range = &i;
+						upgrade = true;
+					}
 				}
 			}
 		}
@@ -348,19 +404,63 @@ int main() {
 		SDL_SetRenderDrawColor(rend, 0, 0, 0, 0);
 		SDL_RenderClear(rend);
 		raycastDDA(&p, rend);
-		int n = 0;
-		for (auto& i : sprites) {
-			i.distance = (sqrt(((p.x - i.x) * (p.x - i.x) + (p.y - i.y) * (p.y - i.y)))) / 16;
-			//std::cout << i.distance << std::endl;
-			
-			if (i.health <= 0) {
-				sprites.erase(sprites.begin() + n);
+		
+		if(!upgrade) {
+			int n = 0;
+			for (auto& i : sprites) {
+				i.distance = (sqrt(((p.x - i.x) * (p.x - i.x) + (p.y - i.y) * (p.y - i.y)))) / 16;
+				//std::cout << i.distance << std::endl;
+				if (!i.dead) {
+					if (i.distance <= 1.2) {
+						range = &i;
+						drawehealth = true;
+						i.time += delta;
+						if (i.time > i.ftime) {
+							if (i.forward) {
+								i.f++;
+								if (i.f > i.frames) {
+									i.f = i.frames;
+									i.forward = false;
+								}
+							}
+							else {
+								i.f--;
+								if (i.f < 1) {
+									i.f = 1;
+									p.health -= 5;
+									i.forward = true;
+								}
+							}
+							switch (i.f) {
+							case 1:
+								i.surf = enemsurf;
+								break;
+							case 2:
+								i.surf = enemsurf2;
+								break;
+							case 3:
+								i.surf = enemsurf3;
+								break;
+							}
+							i.time = 0;
+						}
+					}
+					else {
+						i.surf = enemsurf;
+					}
+					if (i.health <= 0) {
+						i.health = 1;
+						i.dead = true;
+					}
+				}
+				else {
+					i.surf = deadsurf;
+				}
+				n++;
 			}
-			n++;
 		}
 		std::sort(sprites.begin(), sprites.end(), spriteDistanceSort);
 		//std::cout << "X: " << p.x << " Y: " << p.y << std::endl;
-		enemonscreen = false;
 		for (int i = 0; i < sprites.size(); i++) {
 			float spx = sprites[i].x - p.x;
 			float spy = sprites[i].y - p.y;
@@ -394,9 +494,8 @@ int main() {
 						int d = (y) * 256 - 800 * 128 + spriteheight * 128; //256 and 128 factors to avoid floats
 						int texY = ((d * 400) / spriteheight) / 256;
 						if (texY >= 0 && texY <= 400 && texX >= 0 && texX <= 300) {
-							Uint32 color = gore.GetPixelSurface(enemsurf, &texY, &texX);
+							Uint32 color = gore.GetPixelSurface(sprites[i].surf, &texY, &texX);
 							gore.SetPixelSurface(surf, &y, &stripe, &color);
-							enemonscreen = true;
 						}
 					}
 			}
@@ -407,6 +506,48 @@ int main() {
 		SDL_RenderCopy(rend, tex, NULL, &frect);
 		SDL_DestroyTexture(tex);
 		gore.clearSurface(surf);
+		if (upgrade) {
+			SDL_SetRenderDrawColor(rend, 150, 255, 50, 0);
+			SDL_Rect rect = { 200, 200, 270, 220 };
+			SDL_RenderFillRect(rend, &rect);
+			//Button to upgrade strength
+			//Button upgrade agility
+			SDL_SetRenderDrawColor(rend, 255, 50, 150, 0);
+			SDL_Rect frect = { 210, 210, 250, 100 };
+			SDL_RenderFillRect(rend, &frect);
+			drawText(rend, texthead, "Upgrade Strength", 220, 220, 26, 28, 200);
+			SDL_SetRenderDrawColor(rend, 100, 50, 250, 0);
+			SDL_Rect erect = { 210, 310, 250, 100 };
+			SDL_RenderFillRect(rend, &erect);
+			drawText(rend, texthead, "Upgrade Agility", 220, 320, 26, 28, 200);
+			int mx, my;
+			if(SDL_GetMouseState(&mx, &my)& SDL_BUTTON(SDL_BUTTON_LEFT)) {
+				if (mx < 210 + 250 && mx + 1 > 210 && my < 210 + 100 && my + 1 > 210) {
+					p.strength++;
+					upgrade = false;
+					p.health += 25;
+					atktimer = 0;
+				}
+				else if (mx < 210 + 250 && mx + 1 > 210 && my < 310 + 100 && my + 1 > 310) {
+					p.agility++;
+					atkcool -= 0.05;
+					upgrade = false;
+					p.health += 25;
+					atktimer = 0;
+				}
+			}
+
+		}
+		std::string temp = "Health: " + std::to_string(p.health);
+		drawText(rend, texthead, temp, 10, 10, 20, 20, 500);
+		if (drawehealth) {
+			std::string temp2 = "Enemy Health: " + std::to_string(range->health);
+			drawText(rend, texthead, temp2, 10, 60, 20, 20, 500);
+		}
+		std::string temp3 = "Strength: " + std::to_string(p.strength);
+		drawText(rend, texthead, temp3, 250, 10, 20, 20, 500);
+		std::string temp4 = "Agility: " + std::to_string(p.agility);
+		drawText(rend, texthead, temp4, 250, 30, 20, 20, 500);
 		int j = 0;
 		for(auto& i : animates){
 			i.time += delta;
@@ -416,7 +557,7 @@ int main() {
 			}
 			if (i.sprites == NULL) {
 				animates.erase(animates.begin() + j);
-				i.targ->health -= 10;
+				i.targ->health -= 5 * p.strength;
 				std::cout << i.targ->health << std::endl;
 			}
 			else {
