@@ -20,6 +20,24 @@ SDL_Texture* Gore::findTex(texp head, std::string name) {
 	return NULL;
 }
 
+void Gore::insertSprite(spxp& sp, SDL_Surface* surf, std::string name) {
+	spxp t;
+	t = new SpriteListMem;
+	t->current = surf;
+	t->next = sp;
+	t->name = name;
+	sp = t;
+}
+SDL_Surface* Gore::findSprite(spxp sp, std::string name) {
+	spxp temp = sp;
+	while (temp != NULL) {
+		if (temp->name.compare(name) == 0) {
+			return temp->current;
+		}
+		temp = temp->next;
+	}
+	return NULL;
+}
 
 double Gore::getDelta() {
 	double delta = 0;
@@ -115,7 +133,21 @@ texp& Gore::loadTextureList(std::vector<std::string> names, std::vector<unsigned
 	}
 	return head;
 }
-
+spxp& Gore::loadSpriteList(std::vector<std::string> names, std::vector<unsigned int> widths, std::vector<unsigned int> heights, SDL_PixelFormatEnum format, SDL_Renderer* rend, std::string filepath) {
+	spxp head = NULL;
+	int j = 0;
+	for (auto& i : names) {
+		std::string t = i;
+		if (filepath != "NULL") {
+			t = filepath + i;
+		}
+		SDL_Surface* surf = loadPNG(t, format, widths[j], heights[j]);
+		insertSprite(head, surf, i);
+		SDL_FreeSurface(surf);
+		j++;
+	}
+	return head;
+}
 //Input starting integer number for character then will loop through till it hits end of input whole time adding to out
 void Gore::mapTextTextures(int start, texp& out, texp& input) {
 	texp t = input;

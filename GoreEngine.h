@@ -15,6 +15,12 @@ struct TexListMem {
 	std::string name;
 };
 typedef TexListMem* texp;
+struct SpriteListMem {
+	SDL_Surface* current;
+	SpriteListMem* next;
+	std::string name;
+};
+typedef SpriteListMem* spxp;
 
 class Gore {
 private:
@@ -23,6 +29,8 @@ private:
 public:
 	void insertTex(TexListMem*& tex, SDL_Texture* current, std::string name);
 	SDL_Texture* findTex(texp head, std::string name);
+	void insertSprite(SpriteListMem*& sp, SDL_Surface* surf, std::string name);
+	SDL_Surface* findSprite(spxp sp, std::string name);
 	void SetPixelSurface(SDL_Surface* surf, int* y, int* x, Uint32* pixel);
 	Uint32 GetPixelSurface(SDL_Surface* surf, int* y, int* x);
 	void SetPixelSurfaceColor(SDL_Surface* surf, int* y, int* x, SDL_Color* color);
@@ -33,6 +41,7 @@ public:
 	SDL_Surface* loadPNG(std::string name, SDL_PixelFormatEnum format, int w, int h);
 	SDL_Surface* LoadBMP(const char* file, SDL_PixelFormatEnum format);
 	texp& loadTextureList(std::vector<std::string> names, std::vector<unsigned int> widths, std::vector<unsigned int> heights, SDL_PixelFormatEnum format, SDL_Renderer* rend, std::string filepath = "NULL");
+	spxp& loadSpriteList(std::vector<std::string> names, std::vector<unsigned int> widths, std::vector<unsigned int> heights, SDL_PixelFormatEnum format, SDL_Renderer* rend, std::string filepath = "NULL");
 	void mapTextTextures(int start, texp& out, texp& input);
 	void drawText(SDL_Renderer* rend, texp& texthead, std::string text, int x, int y, int w, int h);
 	double getDelta();
